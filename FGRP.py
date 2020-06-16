@@ -18,24 +18,26 @@
 
 # Importing libraries to the environment
 import sqlite3
-from math import sqrt
 
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+
 import seaborn as sns
-import keras
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.linear_model import LinearRegression, LogisticRegression
+import matplotlib.pyplot as plt
+
+from keras.layers import Dense
+from keras.models import Sequential
+
+from sklearn.svm import SVC
 from sklearn.metrics import accuracy_score
-from sklearn.model_selection import train_test_split, KFold, StratifiedKFold
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import train_test_split, KFold
+
 from sklearn.naive_bayes import GaussianNB
-from sklearn.neighbors import KNeighborsClassifier
 from sklearn.metrics import mean_squared_error
 from sklearn.tree import DecisionTreeClassifier
-from sklearn.svm import SVC
-from keras.models import Sequential
-from keras.layers import Dense, Activation, Layer, Lambda
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.linear_model import LinearRegression, LogisticRegression
 
 ##################################################################################
 ############################### Data Wrangling ###################################
@@ -224,11 +226,11 @@ def visualization():
     tie_percent = results.query('FTR=="0"').HTG / results.shape[0]
     away_percent = results.query('FTR=="2"').HTG / results.shape[0]
 
-    # plt.figure(figsize=(8, 8))
-    # pie_labels = ['Tied', 'Away Team Won', 'Home Team Won']
-    # plt.pie([tie_percent, away_percent, home_percent], labels=pie_labels, autopct='%1.1f%%', shadow=True)
-    # plt.title('Distribution of match results by winning team')
-    # plt.show()
+    plt.figure(figsize=(8, 8))
+    pie_labels = ['Tied', 'Away Team Won', 'Home Team Won']
+    plt.pie([tie_percent, away_percent, home_percent], labels=pie_labels, autopct='%1.1f%%', shadow=True)
+    plt.title('Distribution of match results by winning team')
+    plt.show()
 
     players_height = pd.read_sql("""SELECT CASE
                                             WHEN ROUND(height)<165 then 165
@@ -335,7 +337,7 @@ def train_split_model():
 
 
 def train_dnn_model():
-    # DNN - 46.07%
+    # DNN - 46.07% // 1k epochs => 46.34%
     global match
     # divide dataset into x(input) and y(output)
     predictor_var = ['B365H', 'B365D', 'B365A', 'BWH', 'BWD',
@@ -348,18 +350,23 @@ def train_dnn_model():
     trainX, testX, trainY, testY = train_test_split(X, y, test_size=0.2, random_state=42)
     trainX, valX, trainY, valY = train_test_split(trainX, trainY, test_size=0.2, random_state=42)
 
-    dnn = build_deep_neural([10, 50, 70, 40, 1])
-    dnn.fit(np.array(trainX), np.array(trainY), epochs=100)
+    dnn = build_deep_neural([10, 30, 50, 20, 1])
+    dnn.fit(np.array(trainX), np.array(trainY), epochs=10)
     # - Evaluation
     scores = dnn.evaluate(np.array(valX), np.array(valY))
-    print(scores)
+    print('scores: %.3f%%' % scores[1])
     predY = dnn.predict(np.array(testX))
     predY = np.round(predY).astype(int).reshape(1, -1)[0]
     from sklearn.metrics import confusion_matrix
+    cm = pd.crosstab(predY, testY)
     m = confusion_matrix(predY, testY)
-    m = pd.crosstab(predY, testY)
     print("Confusion matrix")
     print(m)
+    plt.matshow(cm)
+    plt.title('Confusion matrix for validation data\n'
+              + '                               ')
+    plt.colorbar()
+    plt.show()
 
 
 ##################################################################################
@@ -369,6 +376,12 @@ def evaluation(y_true, y_pred):
     accuracy = accuracy_score(y_true, y_pred)
     print("Model accuracy: %.2f%% " % accuracy)
     # mse = mean_squared_error(y_true=y_true, y_pred=y_pred)
+    # Feature Importance rank
+    # fi = enumerate(rfc.feature_importances_)
+    # cols = train.columns
+    # fi = [(value, cols[i]) for (i, value) in fi if value > 0.005]
+    # fi.sort(key=lambda tup: tup[0], reverse=True)
+    # print(fi)
 
 
 ##################################################################################
