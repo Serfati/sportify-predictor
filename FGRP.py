@@ -24,7 +24,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
-import sklearn as sk
+import keras
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LinearRegression, LogisticRegression
 from sklearn.metrics import accuracy_score
@@ -34,6 +34,8 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.metrics import mean_squared_error
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.svm import SVC
+from keras.models import Sequential
+from keras.layers import Dense, Activation, Layer, Lambda
 
 ##################################################################################
 ############################### Data Wrangling ###################################
@@ -135,8 +137,6 @@ def cleaning():
 
     # GOAL_DIFF for each match
     match['GOAL_DIFF'] = match['HTG'] - match['ATG']
-
-    print(match.head())
 
 
 def match_result(home_goal, away_goal):
@@ -266,6 +266,19 @@ def visualization():
 ##################################################################################
 # ****************************** Data Splitting  ******************************  #
 ##################################################################################
+def build_deep_neural(arr):
+    model = Sequential()
+    for i in range(len(arr)):
+        if i != 0 and i != len(arr) - 1:
+            if i == 1:
+                model.add(Dense(arr[i], input_dim=arr[0], kernel_initializer='normal', activation='relu'))
+            else:
+                model.add(Dense(arr[i], activation='relu'))
+    model.add(Dense(arr[-1], kernel_initializer='normal', activation="sigmoid"))
+    model.compile(loss="binary_crossentropy", optimizer='rmsprop', metrics=['accuracy'])
+    return model
+
+
 def percentage_split(model, data):
     # LogisticRegression - 0.53%
     # LinearRegression - 0.47%
@@ -279,9 +292,9 @@ def percentage_split(model, data):
     test = np.array(test)
 
     y = df[:, -1]
-    x = df[:, 8:18]
+    x = df[:, 8:12]
     y1 = test[:, -1]
-    x1 = test[:, 8:18]
+    x1 = test[:, 8:12]
 
     model.fit(x, y.astype('int'))
     y_predict = model.predict(x1)
@@ -317,8 +330,36 @@ def train_cross_model():
 
 def train_split_model():
     global match
-    model = DecisionTreeClassifier()
+    model = RandomForestClassifier()
     percentage_split(model, match)
+
+
+def train_dnn_model():
+    # DNN - 46.07%
+    global match
+    # divide dataset into x(input) and y(output)
+    predictor_var = ['B365H', 'B365D', 'B365A', 'BWH', 'BWD',
+                     'BWA', 'HGA', 'AGA', 'B365', 'BW']
+    X = match[predictor_var]
+    y = match["FTR"]
+
+    # - Splitting
+    # divide dataset into training set, cross validation set, and test set
+    trainX, testX, trainY, testY = train_test_split(X, y, test_size=0.2, random_state=42)
+    trainX, valX, trainY, valY = train_test_split(trainX, trainY, test_size=0.2, random_state=42)
+
+    dnn = build_deep_neural([10, 50, 70, 40, 1])
+    dnn.fit(np.array(trainX), np.array(trainY), epochs=100)
+    # - Evaluation
+    scores = dnn.evaluate(np.array(valX), np.array(valY))
+    print(scores)
+    predY = dnn.predict(np.array(testX))
+    predY = np.round(predY).astype(int).reshape(1, -1)[0]
+    from sklearn.metrics import confusion_matrix
+    m = confusion_matrix(predY, testY)
+    m = pd.crosstab(predY, testY)
+    print("Confusion matrix")
+    print(m)
 
 
 ##################################################################################
@@ -340,7 +381,8 @@ def run_main_loop():
     preparation()
     # visualization()
     # train_cross_model()
-    train_split_model()
+    # train_split_model()
+    train_dnn_model()
 
 
 if __name__ == '__main__':
