@@ -1,5 +1,4 @@
 <img src="https://in.bgu.ac.il/marketing/graphics/BGU.sig3-he-en-white.png" height="48px" align="right" />  
-<img src=https://storage.googleapis.com/aihub-c2t-containers-public/release-0.2.0/kfp-components/oob_algorithm/kmeans/assets/kmeans.png height="120"/>  
 
   
 ![](https://codeclimate.com/github/JonSn0w/Hyde/badges/gpa.svg)   ![](https://img.shields.io/badge/version-0.1.0-blueviolet)  ![](https://img.shields.io/apm/l/atomic-design-ui.svg?)  
