@@ -124,6 +124,7 @@ def understanding():
 #### Create new variables ########################################################
 def cleaning():
     global match
+
     selected_col = ["home_team", "home_id", "away_team", "away_id", "season", "home_team_goal", "away_team_goal",
                     "league_name", 'date', 'B365H', 'B365D', 'B365A', 'BWH', 'BWD', 'BWA']
 
@@ -157,6 +158,8 @@ def bets_result(bhome, bdarw, baway):
         return 2
     elif bdarw <= bhome <= baway or bdarw <= baway <= bhome:
         return 0
+
+short2id = pd.read_sql("SELECT team_api_id AS ID, team_Short_name AS short FROM Team", cnx)
 
 
 def preparation():
@@ -265,6 +268,14 @@ def visualization():
     plt.show()
 
 
+def draw_confusion(cm):
+    plt.matshow(cm)
+    plt.title('Confusion matrix for validation data\n'
+              + '                               ')
+    plt.colorbar()
+    plt.show()
+
+
 ##################################################################################
 # ****************************** Data Splitting  ******************************  #
 ##################################################################################
@@ -359,14 +370,10 @@ def train_dnn_model():
     predY = np.round(predY).astype(int).reshape(1, -1)[0]
     from sklearn.metrics import confusion_matrix
     cm = pd.crosstab(predY, testY)
+    draw_confusion(cm)
     m = confusion_matrix(predY, testY)
     print("Confusion matrix")
     print(m)
-    plt.matshow(cm)
-    plt.title('Confusion matrix for validation data\n'
-              + '                               ')
-    plt.colorbar()
-    plt.show()
 
 
 ##################################################################################
