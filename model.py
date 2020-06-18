@@ -176,7 +176,7 @@ def preparation():
     match['B365'] = match.apply(lambda i: bets_result(i['B365H'], i['B365D'], i['B365A']), axis=1)
     # B-Win Result Bet
     match['BW'] = match.apply(lambda i: bets_result(i['BWH'], i['BWD'], i['BWA']), axis=1)
-    # Target Variable -  Full Time Result
+
 
     match_temp = pd.read_sql("SELECT * FROM Match ORDER by date", cnx)
     match_temp['FTR'] = match_temp.apply(lambda i: match_result(i['home_team_goal'], i['away_team_goal']), axis=1)
@@ -189,6 +189,7 @@ def preparation():
                                                         axis=1)
     match["AwayWinLastFiveConfrontation"] = match.apply(lambda i: get_conf_winnings_away(i["HomeID"], i["AwayID"], res),
                                                         axis=1)
+    # Target Variable -  Full Time Result
     match['FTR'] = match.apply(lambda i: match_result(i['HTG'], i['ATG']), axis=1)
     print("done - transform to database")
     match.to_sql(name='Sportify', con=cnx)
@@ -432,7 +433,6 @@ def percentage_split(model, data):
     # LinearRegression - 0.47%
     # KNN - 0.64%
     # NB - 0.459%
-    # DecisionTreeClassifier - 00
     # SVM -  0.53%
     data = data.drop('GOAL_DIFF', axis=1)
     print('Modeling')
@@ -495,7 +495,7 @@ def train_dnn_model():
     # divide dataset into training set, cross validation set, and test set
     trainX, testX, trainY, testY = train_test_split(X, y, test_size=0.2, random_state=42)
     trainX, valX, trainY, valY = train_test_split(trainX, trainY, test_size=0.2, random_state=42)
-    dnn.fit(np.array(trainX), np.array(trainY), epochs=250)
+    dnn.fit(np.array(trainX), np.array(trainY), epochs=10)
     # # - Evaluation
     scores = dnn.evaluate(np.array(valX), np.array(valY))
     print('scores: %.3f%%' % scores[1])
@@ -539,8 +539,10 @@ def run_main_loop():
 
     importing()
     # visualization()
-    init_models()
-    train_cross_model()
+
+    # init_models()
+
+    # train_cross_model()
     # train_split_model()
     # train_dnn_model()
 
