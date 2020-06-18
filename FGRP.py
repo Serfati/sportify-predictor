@@ -169,12 +169,126 @@ def preparation():
     # Target Variable -  Full Time Result
     match['FTR'] = match.apply(lambda i: match_result(i['HTG'], i['ATG']), axis=1)
 
-    # TODO add 4 new columns
-    # HomeWinLastFive
-    # AwayWinLastFive
-    # HomeWinLastFiveConfrontation
-    # AwayWinLastFiveConfrontation
+    match_temp = pd.read_sql("SELECT * FROM Match", cnx)
+    match_temp['FTR'] = match_temp.apply(lambda i: match_result(i['home_team_goal'], i['away_team_goal']), axis=1)
+    res = getLast5MatchesHome(match_temp)
+    match["HomeWinLastFive"] = match.apply(lambda i: setWinningsHome(i["HomeID"], res), axis=1)
+    res = getLast5MatchesAway(match_temp)
+    match["AwayWinLastFive"] = match.apply(lambda i: setWinningsAway(i["AwayID"], res), axis=1)
+    res = getLast5MatchesConf(match_temp)
+    match["HomeWinLastFiveConfrontation"] = match.apply(lambda i: getConfWinningsHome(i["HomeID"], i["AwayID"], res), axis=1)
+    match["AwayWinLastFiveConfrontation"] = match.apply(lambda i: getConfWinningsAway(i["HomeID"], i["AwayID"], res), axis=1)
+    print("done")
 
+
+def getLast5MatchesHome(matches):
+    matches = matches.sort_values(by=['home_team_api_id', 'date'], ascending=False)
+    matches = matches.groupby('home_team_api_id').head(5)
+    sub_matches = matches[['home_team_api_id', 'FTR']]
+    ids_and_res = matches[['home_team_api_id']].groupby('home_team_api_id').first().reset_index()
+    winners = sub_matches[sub_matches['FTR'] == 1].groupby('home_team_api_id').count().reset_index()
+    ids_and_res['winnings'] = 0
+    ids_and_res['winnings'] = ids_and_res.apply(lambda i: setResHome(i["home_team_api_id"], winners), axis=1)
+    return ids_and_res
+
+
+def getLast5MatchesAway(matches):
+    matches = matches.sort_values(by=['away_team_api_id', 'date'], ascending=False)
+    matches = matches.groupby('away_team_api_id').head(5)
+    sub_matches = matches[['away_team_api_id', 'FTR']]
+    ids_and_res = matches[['away_team_api_id']].groupby('away_team_api_id').first().reset_index()
+    winners = sub_matches[sub_matches['FTR'] == 1].groupby('away_team_api_id').count().reset_index()
+    ids_and_res['winnings'] = 0
+    ids_and_res['winnings'] = ids_and_res.apply(lambda i: setResAway(i["away_team_api_id"], winners), axis=1)
+    return ids_and_res
+
+
+def setResHome(home_team_id, winners_df):
+    if home_team_id in winners_df["home_team_api_id"].values:
+        return winners_df.loc[winners_df['home_team_api_id'] == home_team_id, 'FTR'].iloc[0]
+    return 0
+
+
+def setWinningsHome(home_team_id, winners_df):
+    if home_team_id in winners_df["home_team_api_id"].values:
+        return winners_df.loc[winners_df['home_team_api_id'] == home_team_id, 'winnings'].iloc[0]
+    return 0
+
+
+def setResAway(away_team_id_api, winners_df):
+    if away_team_id_api in winners_df["away_team_api_id"].values:
+        return winners_df.loc[winners_df['away_team_api_id'] == away_team_id_api, 'FTR'].iloc[0]
+    return 0
+
+
+def setWinningsAway(away_team_id, winners_df):
+    if away_team_id in winners_df["away_team_api_id"].values:
+        return winners_df.loc[winners_df['away_team_api_id'] == away_team_id, 'winnings'].iloc[0]
+    return 0
+
+
+def getLast5MatchesConf(matches):
+    matches["homeAndAwayID"] = ""
+    combineIDs(matches)
+    matches.sort_values(by=['homeAndAwayID', 'date'], ascending=False, inplace=True)
+    matches = matches.groupby('homeAndAwayID').head(5)
+    sub_matches = matches[['home_team_api_id', 'away_team_api_id', 'homeAndAwayID', 'FTR']]
+    return calcWinnings(sub_matches)
+
+def calcWinnings(matches):
+    matches['HomeWinLastFiveConfrontation'] = 0
+    matches['AwayWinLastFiveConfrontation'] = 0
+    for index, row in matches.iterrows():
+        if row.FTR == 1:
+            # return winners_df.loc[winners_df['home_team_api_id'] == home_team_id, 'FTR'].iloc[0]
+            points = matches.loc[index, 'HomeWinLastFiveConfrontation']
+            matches.loc[((matches["homeAndAwayID"] == row.homeAndAwayID) &
+                        (matches["home_team_api_id"] == row.home_team_api_id)), 'HomeWinLastFiveConfrontation'] = \
+                int(int(points) + 1)
+            matches.loc[((matches["homeAndAwayID"] == row.homeAndAwayID) &
+                        (matches["away_team_api_id"] == row.home_team_api_id)), 'AwayWinLastFiveConfrontation'] = \
+                int(int(points) + 1)
+        elif row.FTR == 2:
+            points = matches.loc[index, 'AwayWinLastFiveConfrontation']
+            matches.loc[((matches["homeAndAwayID"] == row.homeAndAwayID) &
+                        (matches["away_team_api_id"] == row.away_team_api_id)), 'AwayWinLastFiveConfrontation'] = \
+                int(int(points) + 1)
+            matches.loc[((matches["homeAndAwayID"] == row.homeAndAwayID) &
+                        (matches["home_team_api_id"] == row.away_team_api_id)), 'HomeWinLastFiveConfrontation'] = \
+                int(int(points) + 1)
+
+    matches = matches.groupby('homeAndAwayID').first().reset_index()
+    return matches
+
+
+def combineIDs(matches):
+    for index, row in matches.iterrows():
+        if (str(row.away_team_api_id) + str(row.home_team_api_id)) in matches["homeAndAwayID"].astype(str).values:
+            matches.loc[index, 'homeAndAwayID'] = str(row.away_team_api_id) + str(row.home_team_api_id)
+        else:
+            matches.loc[index, 'homeAndAwayID'] = str(row.home_team_api_id) + str(row.away_team_api_id)
+
+
+def combineID(id1, id2, matches, i):
+    if (str(id2) + str(id1)) in matches["homeAndAwayID"].astype(str).values:
+        matches.loc[i, 'homeAndAwayID'] = str(id2) + str(id1)
+    matches.loc[i, 'homeAndAwayID'] = str(id1) + str(id2)
+
+
+def getConfWinningsHome(HomeID, AwayID, matches):
+    if (str(HomeID) + str(AwayID)) in matches["homeAndAwayID"].astype(str).values:
+        x = matches.loc[matches["homeAndAwayID"] == (str(HomeID) + str(AwayID))]
+        return x["HomeWinLastFiveConfrontation"].iloc[0]
+    x = matches.loc[matches["homeAndAwayID"] == (str(AwayID) + str(HomeID))]
+    return x["HomeWinLastFiveConfrontation"].iloc[0]
+
+
+def getConfWinningsAway(HomeID, AwayID, matches):
+    if (str(HomeID) + str(AwayID)) in matches["homeAndAwayID"].astype(str).values:
+        x = matches.loc[matches["homeAndAwayID"] == (str(HomeID) + str(AwayID))]
+        return x["AwayWinLastFiveConfrontation"].iloc[0]
+    x = matches.loc[matches["homeAndAwayID"] == (str(AwayID) + str(HomeID))]
+    return x["AwayWinLastFiveConfrontation"].iloc[0]
 
 ##################################################################################
 # ****************************** VISUALIZATION  ******************************   #
