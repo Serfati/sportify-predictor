@@ -48,6 +48,8 @@ cnx = sqlite3.connect('database.sqlite')
 
 
 def wrangling():
+    print("Data Wrangling")
+
     global match, cnx
     # Plot styling and sizing
     plt.style.use('seaborn-darkgrid')
@@ -80,16 +82,17 @@ def wrangling():
                                     JOIN League on League.id = Match.league_id
                                     LEFT JOIN Team AS HT on HT.team_api_id = Match.home_team_api_id
                                     LEFT JOIN Team AS AT on AT.team_api_id = Match.away_team_api_id
-                                    WHERE country_name in ('Spain', 'Germany', 'France', 'Italy', 'England')
-    
                                     ORDER by date
-                                    LIMIT 100000;""", cnx)
+                                    ;""", cnx)
 
 
+# WHERE country_name in ('Spain', 'Germany', 'France', 'Italy', 'England')
 ##################################################################################
 ############################# Data Understanding #################################
 ##################################################################################
 def understanding():
+    print("Data Understanding")
+
     print(match.head())
 
     # ## Exploratory data analysis
@@ -123,8 +126,8 @@ def understanding():
 # *********************** Data Cleaning + Preparation ************************   #
 #### Create new variables ########################################################
 def cleaning():
+    print("Data Cleaning")
     global match
-
     selected_col = ["home_team", "home_id", "away_team", "away_id", "season", "home_team_goal", "away_team_goal",
                     "league_name", 'date', 'B365H', 'B365D', 'B365A', 'BWH', 'BWD', 'BWA']
 
@@ -159,10 +162,12 @@ def bets_result(bhome, bdarw, baway):
     elif bdarw <= bhome <= baway or bdarw <= baway <= bhome:
         return 0
 
+
 short2id = pd.read_sql("SELECT team_api_id AS ID, team_Short_name AS short FROM Team", cnx)
 
 
 def preparation():
+    print("Data Preparation")
     # Home team Goal Average
     match['HGA'] = match['HTG'].groupby(match['HomeTeam']).transform('mean')
     # Away team Goal Average
@@ -172,18 +177,21 @@ def preparation():
     # B-Win Result Bet
     match['BW'] = match.apply(lambda i: bets_result(i['BWH'], i['BWD'], i['BWA']), axis=1)
     # Target Variable -  Full Time Result
-    match['FTR'] = match.apply(lambda i: match_result(i['HTG'], i['ATG']), axis=1)
 
-    match_temp = pd.read_sql("SELECT * FROM Match", cnx)
+    match_temp = pd.read_sql("SELECT * FROM Match ORDER by date", cnx)
     match_temp['FTR'] = match_temp.apply(lambda i: match_result(i['home_team_goal'], i['away_team_goal']), axis=1)
     res = getLast5MatchesHome(match_temp)
     match["HomeWinLastFive"] = match.apply(lambda i: setWinningsHome(i["HomeID"], res), axis=1)
     res = getLast5MatchesAway(match_temp)
     match["AwayWinLastFive"] = match.apply(lambda i: setWinningsAway(i["AwayID"], res), axis=1)
     res = getLast5MatchesConf(match_temp)
-    match["HomeWinLastFiveConfrontation"] = match.apply(lambda i: getConfWinningsHome(i["HomeID"], i["AwayID"], res), axis=1)
-    match["AwayWinLastFiveConfrontation"] = match.apply(lambda i: getConfWinningsAway(i["HomeID"], i["AwayID"], res), axis=1)
-    print("done")
+    match["HomeWinLastFiveConfrontation"] = match.apply(lambda i: get_conf_winnings_home(i["HomeID"], i["AwayID"], res),
+                                                        axis=1)
+    match["AwayWinLastFiveConfrontation"] = match.apply(lambda i: get_conf_winnings_away(i["HomeID"], i["AwayID"], res),
+                                                        axis=1)
+    match['FTR'] = match.apply(lambda i: match_result(i['HTG'], i['ATG']), axis=1)
+    print("done - transform to database")
+    match.to_sql(name='Sportify', con=cnx)
 
 
 def getLast5MatchesHome(matches):
@@ -240,6 +248,7 @@ def getLast5MatchesConf(matches):
     sub_matches = matches[['home_team_api_id', 'away_team_api_id', 'homeAndAwayID', 'FTR']]
     return calcWinnings(sub_matches)
 
+
 def calcWinnings(matches):
     matches['HomeWinLastFiveConfrontation'] = 0
     matches['AwayWinLastFiveConfrontation'] = 0
@@ -248,18 +257,18 @@ def calcWinnings(matches):
             # return winners_df.loc[winners_df['home_team_api_id'] == home_team_id, 'FTR'].iloc[0]
             points = matches.loc[index, 'HomeWinLastFiveConfrontation']
             matches.loc[((matches["homeAndAwayID"] == row.homeAndAwayID) &
-                        (matches["home_team_api_id"] == row.home_team_api_id)), 'HomeWinLastFiveConfrontation'] = \
+                         (matches["home_team_api_id"] == row.home_team_api_id)), 'HomeWinLastFiveConfrontation'] = \
                 int(int(points) + 1)
             matches.loc[((matches["homeAndAwayID"] == row.homeAndAwayID) &
-                        (matches["away_team_api_id"] == row.home_team_api_id)), 'AwayWinLastFiveConfrontation'] = \
+                         (matches["away_team_api_id"] == row.home_team_api_id)), 'AwayWinLastFiveConfrontation'] = \
                 int(int(points) + 1)
         elif row.FTR == 2:
             points = matches.loc[index, 'AwayWinLastFiveConfrontation']
             matches.loc[((matches["homeAndAwayID"] == row.homeAndAwayID) &
-                        (matches["away_team_api_id"] == row.away_team_api_id)), 'AwayWinLastFiveConfrontation'] = \
+                         (matches["away_team_api_id"] == row.away_team_api_id)), 'AwayWinLastFiveConfrontation'] = \
                 int(int(points) + 1)
             matches.loc[((matches["homeAndAwayID"] == row.homeAndAwayID) &
-                        (matches["home_team_api_id"] == row.away_team_api_id)), 'HomeWinLastFiveConfrontation'] = \
+                         (matches["home_team_api_id"] == row.away_team_api_id)), 'HomeWinLastFiveConfrontation'] = \
                 int(int(points) + 1)
 
     matches = matches.groupby('homeAndAwayID').first().reset_index()
@@ -280,7 +289,7 @@ def combineID(id1, id2, matches, i):
     matches.loc[i, 'homeAndAwayID'] = str(id1) + str(id2)
 
 
-def getConfWinningsHome(HomeID, AwayID, matches):
+def get_conf_winnings_home(HomeID, AwayID, matches):
     if (str(HomeID) + str(AwayID)) in matches["homeAndAwayID"].astype(str).values:
         x = matches.loc[matches["homeAndAwayID"] == (str(HomeID) + str(AwayID))]
         return x["HomeWinLastFiveConfrontation"].iloc[0]
@@ -288,17 +297,29 @@ def getConfWinningsHome(HomeID, AwayID, matches):
     return x["HomeWinLastFiveConfrontation"].iloc[0]
 
 
-def getConfWinningsAway(HomeID, AwayID, matches):
+def get_conf_winnings_away(HomeID, AwayID, matches):
     if (str(HomeID) + str(AwayID)) in matches["homeAndAwayID"].astype(str).values:
         x = matches.loc[matches["homeAndAwayID"] == (str(HomeID) + str(AwayID))]
         return x["AwayWinLastFiveConfrontation"].iloc[0]
     x = matches.loc[matches["homeAndAwayID"] == (str(AwayID) + str(HomeID))]
     return x["AwayWinLastFiveConfrontation"].iloc[0]
 
+
+##################################################################################
+# ******************************    Importing   ******************************   #
+##################################################################################
+def importing():
+    print('Importing Prepared Data')
+    global match
+    match = pd.read_sql('SELECT * FROM Sportify', cnx)
+
+
 ##################################################################################
 # ****************************** VISUALIZATION  ******************************   #
 ##################################################################################
 def visualization():
+    print("Data Visualization")
+
     global cnx
     # Plot the distribution of home_team_goal and its evolution over time.
     f, axes = plt.subplots(2, 1)
@@ -345,7 +366,7 @@ def visualization():
 
     plt.figure(figsize=(8, 8))
     pie_labels = ['Tied', 'Away Team Won', 'Home Team Won']
-    plt.pie([tie_percent, away_percent, home_percent], labels=pie_labels, autopct='%1.1f%%', shadow=True)
+    plt.pie([0.253, away_percent, home_percent], labels=pie_labels, autopct='%1.1f%%', shadow=True)
     plt.title('Distribution of match results by winning team')
     plt.show()
 
@@ -410,18 +431,19 @@ def percentage_split(model, data):
     # LogisticRegression - 0.53%
     # LinearRegression - 0.47%
     # KNN - 0.64%
-    # NB - 0.44%
+    # NB - 0.459%
     # DecisionTreeClassifier - 00
-    # SVM -  0.54%
-    global match
-    train, test = train_test_split(data, test_size=0.35, random_state=1000)
-    df = np.array(match)
+    # SVM -  0.53%
+    data = data.drop('GOAL_DIFF', axis=1)
+    print('Modeling')
+    train, test = train_test_split(data, test_size=0.35, random_state=42)
+    train = np.array(train)
     test = np.array(test)
 
-    y = df[:, -1]
-    x = df[:, 8:12]
+    y = train[:, -1]
+    x = train[:, 9:22]
     y1 = test[:, -1]
-    x1 = test[:, 8:12]
+    x1 = test[:, 9:22]
 
     model.fit(x, y.astype('int'))
     y_predict = model.predict(x1)
@@ -431,11 +453,13 @@ def percentage_split(model, data):
 
 def cross_validation(model, data, predictors, outcome):
     # RandomForestClassifier - 49.4%
-    # SVM - 53.040%
+    # SVM - 53.608%%
     seed = 42
-    kf = KFold(n_splits=10, random_state=seed, shuffle=True)
+    kf = KFold(n_splits=5, random_state=seed, shuffle=True)
     accuracy = []
+    print('Cross-Validation')
     for train, test in kf.split(data):
+        print('.')
         train_predictors = (data[predictors].iloc[train, :])
         train_target = data[outcome].iloc[train]
         model.fit(train_predictors, train_target)
@@ -443,30 +467,27 @@ def cross_validation(model, data, predictors, outcome):
     print("Cross-Validation Score : %s" % "{0:.3%}".format(np.mean(accuracy)))
 
 
+def train_cross_model():
+    predictor_var = ['B365H', 'B365D', 'B365A', 'BWH', 'BWD',
+                     'BWA', 'HGA', 'AGA', 'B365', 'BW', 'HomeWinLastFive', 'AwayWinLastFive',
+                     'HomeWinLastFiveConfrontation', 'AwayWinLastFiveConfrontation']
+    outcome_var = 'FTR'
+    cross_validation(cross, match, predictor_var, outcome_var)
+
+
 ##################################################################################
 # ********************************* Modeling  *********************************  #
 ##################################################################################
-def train_cross_model():
-    global match
-    model = SVC()
-    predictor_var = ['B365H', 'B365D', 'B365A', 'BWH', 'BWD',
-                     'BWA', 'HGA', 'AGA', 'B365', 'BW']
-    outcome_var = 'FTR'
-    cross_validation(model, match, predictor_var, outcome_var)
-
-
 def train_split_model():
-    global match
-    model = RandomForestClassifier()
-    percentage_split(model, match)
+    percentage_split(split, match)
 
 
 def train_dnn_model():
     # DNN - 46.07% // 1k epochs => 46.34%
-    global match
     # divide dataset into x(input) and y(output)
     predictor_var = ['B365H', 'B365D', 'B365A', 'BWH', 'BWD',
-                     'BWA', 'HGA', 'AGA', 'B365', 'BW']
+                     'BWA', 'HGA', 'AGA', 'B365', 'BW', 'HomeWinLastFive', 'AwayWinLastFive',
+                     'HomeWinLastFiveConfrontation', 'AwayWinLastFiveConfrontation']
     X = match[predictor_var]
     y = match["FTR"]
 
@@ -474,20 +495,18 @@ def train_dnn_model():
     # divide dataset into training set, cross validation set, and test set
     trainX, testX, trainY, testY = train_test_split(X, y, test_size=0.2, random_state=42)
     trainX, valX, trainY, valY = train_test_split(trainX, trainY, test_size=0.2, random_state=42)
-
-    dnn = build_deep_neural([10, 30, 50, 20, 1])
-    dnn.fit(np.array(trainX), np.array(trainY), epochs=10)
-    # - Evaluation
+    dnn.fit(np.array(trainX), np.array(trainY), epochs=250)
+    # # - Evaluation
     scores = dnn.evaluate(np.array(valX), np.array(valY))
     print('scores: %.3f%%' % scores[1])
     predY = dnn.predict(np.array(testX))
     predY = np.round(predY).astype(int).reshape(1, -1)[0]
     from sklearn.metrics import confusion_matrix
     cm = pd.crosstab(predY, testY)
-    draw_confusion(cm)
     m = confusion_matrix(predY, testY)
+    draw_confusion(m)
     print("Confusion matrix")
-    print(m)
+    print(cm)
 
 
 ##################################################################################
@@ -495,7 +514,7 @@ def train_dnn_model():
 ##################################################################################
 def evaluation(y_true, y_pred):
     accuracy = accuracy_score(y_true, y_pred)
-    print("Model accuracy: %.2f%% " % accuracy)
+    print("Model accuracy: %.4f%% " % accuracy)
     # mse = mean_squared_error(y_true=y_true, y_pred=y_pred)
     # Feature Importance rank
     # fi = enumerate(rfc.feature_importances_)
@@ -505,19 +524,32 @@ def evaluation(y_true, y_pred):
     # print(fi)
 
 
-##################################################################################
-# -------------------------------- Main Loop ----------------------------------- #
-##################################################################################
+def init_models():
+    global dnn, cross, split
+    cross = SVC()
+    split = GaussianNB()
+    dnn = build_deep_neural([14, 42, 70, 28, 1])
+
+
 def run_main_loop():
     wrangling()
     # understanding()
-    cleaning()
-    preparation()
+    # cleaning()
+    # preparation()
+
+    importing()
     # visualization()
-    # train_cross_model()
+    init_models()
+    train_cross_model()
     # train_split_model()
-    train_dnn_model()
+    # train_dnn_model()
 
 
+##################################################################################
+# -------------------------------- Main Loop ----------------------------------- #
+##################################################################################
 if __name__ == '__main__':
+    cross = SVC()
+    split = GaussianNB()
+    dnn = build_deep_neural([14, 42, 70, 28, 1])
     run_main_loop()

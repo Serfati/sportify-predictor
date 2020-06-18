@@ -16,6 +16,7 @@ import model
 # noinspection PyAttributeOutsideInit
 class UiMainWindow(object):
     def setup_ui(self, main_window):
+        model.run_main_loop()
         main_window.setObjectName("main_window")
         main_window.resize(612, 340)
 
@@ -143,32 +144,51 @@ class UiMainWindow(object):
         t2 = str(self.AwayTeam.currentText())
         t1 = model.short2id.loc[model.short2id['short'] == t1].iloc[0, 0]
         t2 = model.short2id.loc[model.short2id['short'] == t2].iloc[0, 0]
-        xx = []
+        # 10 Columns for each team: 'B365H', 'B365D', 'B365A', 'BWH', 'BWD',
+        #                           'BWA', 'HGA', 'AGA', 'B365', 'BW'
 
-        yy1 = model.dnn.predict(xx)
-        yy2 = model.cross.predict(xx)
-        yy3 = model.split.predict(xx)
+        t1 = model.match.loc[model.match['HomeID'] == t1]
+        print(t1)
+        if len(t1) > 0:
+            testX1 = [t1.iloc[0,6], t1.iloc[0,8]]
+        else:
+            t1 = model.match.loc[model.match['AwayID'] == t1]
+            testX1 = [t1.iloc[0, 7], t1.iloc[0, 9]]
 
-        print(yy1, yy2, yy3)
-        if yy1 == 1:
-            win += 1
+        t2 = model.match.loc[model.match['AwayID'] == t2]
+        print(t2)
+        if len(t2) > 0:
+            testX2 = [t2.iloc[0, 6], t2.iloc[0, 8]]
         else:
-            draw_lose += 1
-        if yy2 == 1:
-            win += 1
-        else:
-            draw_lose += 1
-        if yy3 == 1:
-            win += 1
-        else:
-            draw_lose += 1
+            t2 = model.match.loc[model.match['HomeID'] == t2]
+            testX2 = [t2.iloc[0, 7], t2.iloc[0, 9]]
 
-        if win > draw_lose:
-            self.resultLabel.setText('Home Win')
-        elif win == draw_lose:
-            self.resultLabel.setText('Draw')
-        else:
-            self.resultLabel.setText('Away Win')
+        xx = [testX1, testX2]
+
+        # nn_predict = model.dnn.predict(xx)
+        # svm_predict = model.cross.predict(xx)
+        # nb_predict = model.split.predict(xx)
+        #
+        # print(nn_predict, svm_predict, nb_predict)
+        # if nn_predict == 1:
+        #     win += 1
+        # else:
+        #     draw_lose += 1
+        # if svm_predict == 1:
+        #     win += 1
+        # else:
+        #     draw_lose += 1
+        # if nb_predict == 1:
+        #     win += 1
+        # else:
+        #     draw_lose += 1
+        #
+        # if win > draw_lose:
+        #     self.resultLabel.setText('Home Win')
+        # elif win == draw_lose:
+        #     self.resultLabel.setText('Draw')
+        # else:
+        #     self.resultLabel.setText('Away Win')
 
 
 if __name__ == '__main__':
