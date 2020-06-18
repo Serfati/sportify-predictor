@@ -18,22 +18,26 @@
 
 # Importing libraries to the environment
 import sqlite3
-from math import sqrt
 
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+
 import seaborn as sns
-import sklearn as sk
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.linear_model import LinearRegression, LogisticRegression
+import matplotlib.pyplot as plt
+
+from keras.layers import Dense
+from keras.models import Sequential
+
+from sklearn.svm import SVC
 from sklearn.metrics import accuracy_score
-from sklearn.model_selection import train_test_split, KFold, StratifiedKFold
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import train_test_split, KFold
+
 from sklearn.naive_bayes import GaussianNB
-from sklearn.neighbors import KNeighborsClassifier
 from sklearn.metrics import mean_squared_error
 from sklearn.tree import DecisionTreeClassifier
-from sklearn.svm import SVC
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.linear_model import LinearRegression, LogisticRegression
 
 ##################################################################################
 ############################### Data Wrangling ###################################
@@ -120,6 +124,7 @@ def understanding():
 #### Create new variables ########################################################
 def cleaning():
     global match
+
     selected_col = ["home_team", "home_id", "away_team", "away_id", "season", "home_team_goal", "away_team_goal",
                     "league_name", 'date', 'B365H', 'B365D', 'B365A', 'BWH', 'BWD', 'BWA']
 
@@ -135,8 +140,6 @@ def cleaning():
 
     # GOAL_DIFF for each match
     match['GOAL_DIFF'] = match['HTG'] - match['ATG']
-
-    print(match.head())
 
 
 def match_result(home_goal, away_goal):
@@ -155,6 +158,8 @@ def bets_result(bhome, bdarw, baway):
         return 2
     elif bdarw <= bhome <= baway or bdarw <= baway <= bhome:
         return 0
+
+short2id = pd.read_sql("SELECT team_api_id AS ID, team_Short_name AS short FROM Team", cnx)
 
 
 def preparation():
@@ -338,11 +343,11 @@ def visualization():
     tie_percent = results.query('FTR=="0"').HTG / results.shape[0]
     away_percent = results.query('FTR=="2"').HTG / results.shape[0]
 
-    # plt.figure(figsize=(8, 8))
-    # pie_labels = ['Tied', 'Away Team Won', 'Home Team Won']
-    # plt.pie([tie_percent, away_percent, home_percent], labels=pie_labels, autopct='%1.1f%%', shadow=True)
-    # plt.title('Distribution of match results by winning team')
-    # plt.show()
+    plt.figure(figsize=(8, 8))
+    pie_labels = ['Tied', 'Away Team Won', 'Home Team Won']
+    plt.pie([tie_percent, away_percent, home_percent], labels=pie_labels, autopct='%1.1f%%', shadow=True)
+    plt.title('Distribution of match results by winning team')
+    plt.show()
 
     players_height = pd.read_sql("""SELECT CASE
                                             WHEN ROUND(height)<165 then 165
@@ -377,9 +382,30 @@ def visualization():
     plt.show()
 
 
+def draw_confusion(cm):
+    plt.matshow(cm)
+    plt.title('Confusion matrix for validation data\n'
+              + '                               ')
+    plt.colorbar()
+    plt.show()
+
+
 ##################################################################################
 # ****************************** Data Splitting  ******************************  #
 ##################################################################################
+def build_deep_neural(arr):
+    model = Sequential()
+    for i in range(len(arr)):
+        if i != 0 and i != len(arr) - 1:
+            if i == 1:
+                model.add(Dense(arr[i], input_dim=arr[0], kernel_initializer='normal', activation='relu'))
+            else:
+                model.add(Dense(arr[i], activation='relu'))
+    model.add(Dense(arr[-1], kernel_initializer='normal', activation="sigmoid"))
+    model.compile(loss="binary_crossentropy", optimizer='rmsprop', metrics=['accuracy'])
+    return model
+
+
 def percentage_split(model, data):
     # LogisticRegression - 0.53%
     # LinearRegression - 0.47%
@@ -393,9 +419,9 @@ def percentage_split(model, data):
     test = np.array(test)
 
     y = df[:, -1]
-    x = df[:, 8:18]
+    x = df[:, 8:12]
     y1 = test[:, -1]
-    x1 = test[:, 8:18]
+    x1 = test[:, 8:12]
 
     model.fit(x, y.astype('int'))
     y_predict = model.predict(x1)
@@ -431,8 +457,37 @@ def train_cross_model():
 
 def train_split_model():
     global match
-    model = DecisionTreeClassifier()
+    model = RandomForestClassifier()
     percentage_split(model, match)
+
+
+def train_dnn_model():
+    # DNN - 46.07% // 1k epochs => 46.34%
+    global match
+    # divide dataset into x(input) and y(output)
+    predictor_var = ['B365H', 'B365D', 'B365A', 'BWH', 'BWD',
+                     'BWA', 'HGA', 'AGA', 'B365', 'BW']
+    X = match[predictor_var]
+    y = match["FTR"]
+
+    # - Splitting
+    # divide dataset into training set, cross validation set, and test set
+    trainX, testX, trainY, testY = train_test_split(X, y, test_size=0.2, random_state=42)
+    trainX, valX, trainY, valY = train_test_split(trainX, trainY, test_size=0.2, random_state=42)
+
+    dnn = build_deep_neural([10, 30, 50, 20, 1])
+    dnn.fit(np.array(trainX), np.array(trainY), epochs=10)
+    # - Evaluation
+    scores = dnn.evaluate(np.array(valX), np.array(valY))
+    print('scores: %.3f%%' % scores[1])
+    predY = dnn.predict(np.array(testX))
+    predY = np.round(predY).astype(int).reshape(1, -1)[0]
+    from sklearn.metrics import confusion_matrix
+    cm = pd.crosstab(predY, testY)
+    draw_confusion(cm)
+    m = confusion_matrix(predY, testY)
+    print("Confusion matrix")
+    print(m)
 
 
 ##################################################################################
@@ -442,6 +497,12 @@ def evaluation(y_true, y_pred):
     accuracy = accuracy_score(y_true, y_pred)
     print("Model accuracy: %.2f%% " % accuracy)
     # mse = mean_squared_error(y_true=y_true, y_pred=y_pred)
+    # Feature Importance rank
+    # fi = enumerate(rfc.feature_importances_)
+    # cols = train.columns
+    # fi = [(value, cols[i]) for (i, value) in fi if value > 0.005]
+    # fi.sort(key=lambda tup: tup[0], reverse=True)
+    # print(fi)
 
 
 ##################################################################################
@@ -454,7 +515,8 @@ def run_main_loop():
     preparation()
     # visualization()
     # train_cross_model()
-    train_split_model()
+    # train_split_model()
+    train_dnn_model()
 
 
 if __name__ == '__main__':
