@@ -22,23 +22,24 @@ You can modify or contribute to this project by following the steps below:
 - [Clone](https://help.github.com/en/github/creating-cloning-and-archiving-repositories/cloning-a-repository) to a location on your machine.  
  ```bash  
  # Clone the repository 
- $> git clone https://github.com/serfati/foorball-game-result-predicator.git  
+ $> git clone https://github.com/serfati/sportify-predictor.git  
 
  # Navigate to the directory 
- $> cd FGRP
+ $> cd sportify-predictor
   ``` 
  
 **2. launch of the project**  
   
  ```bash  
  # run 
- $> python FGRP.py
+ $> python app.py
  ```  
 
 
 ### Screenshots
 
-  
+<img src="https://res.cloudinary.com/serfati/image/upload/v1592550267/Screenshot_from_2020-06-19_10-03-37_eo70aw.png"/>
+
 ---  
 
   
